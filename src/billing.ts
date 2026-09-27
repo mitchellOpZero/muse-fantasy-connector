@@ -108,7 +108,10 @@ export function requireTierFor(
         `"${tool}" requires the ${label} tier (you are on ` +
         `${current === 'free' ? 'Free' : current}). Subscribe to unlock it — ` +
         `the connector cannot and will not charge you itself.`,
-      payment_url: cfg.paymentUrl,
+      payment_url:
+        required === 'commissioner'
+          ? cfg.commissionerPaymentUrl
+          : cfg.proPaymentUrl,
       pricing_url: cfg.pricingUrl,
     },
   };

@@ -7,6 +7,8 @@ export interface ConnectorConfig {
   serviceName: string;
   publicUrl: string;
   paymentUrl: string;
+  proPaymentUrl: string;
+  commissionerPaymentUrl: string;
   pricingUrl: string;
   supportEmail: string;
   rateLimitPerMin: number;
@@ -33,6 +35,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConnectorConfi
     serviceName: env.SERVICE_NAME ?? 'Fantasy Football Connector',
     publicUrl: (env.PUBLIC_URL ?? 'http://127.0.0.1:8102').replace(/\/$/, ''),
     paymentUrl: env.PAYMENT_URL ?? 'https://example.com/subscribe',
+    proPaymentUrl:
+      env.PRO_PAYMENT_URL ?? env.PAYMENT_URL ?? 'https://example.com/subscribe',
+    commissionerPaymentUrl:
+      env.COMMISSIONER_PAYMENT_URL ??
+      env.PAYMENT_URL ??
+      'https://example.com/subscribe',
     pricingUrl:
       env.PRICING_URL ??
       'https://github.com/mitchellOpZero/muse-fantasy-connector/blob/main/PRICING.md',

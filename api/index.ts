@@ -16,4 +16,10 @@ import { app } from '../src/server.js';
 
 export const config = { runtime: 'nodejs' };
 
-export default app;
+// Explicit request-handler function: Vercel validates the entry module's
+// default export at boot and requires a function (a re-exported Express app
+// tripped "Invalid export" validation in production).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default function handler(req: any, res: any): void {
+  app(req, res);
+}

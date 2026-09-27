@@ -24,6 +24,6 @@ Sleeper live state endpoint verified separately: 2026 season, week 3. Full Sleep
 
 ## Not yet evaluated
 
-- Live Yahoo OAuth round trip (needs an approved Yahoo app with a registered redirect URI).
+- Live Yahoo OAuth round trip (needs an approved Yahoo app with a registered redirect URI). Auth contract reconciled 2026-09-27: Yahoo's current docs require OAuth 2.0 authorization code flow (OAuth 1.0a is legacy); the implementation matches the current contract.
 - Stripe webhook (501 stub by design until checkout is wired).
 - Free-tier one-league counting (needs durable per-user storage; documented in SUBMISSION.md).

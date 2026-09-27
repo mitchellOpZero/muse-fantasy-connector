@@ -63,7 +63,7 @@ skills/           Claude skill for fantasy management
 
 Tests: 41 passing. Live E2E verified 2026-09-27 against the real BakaBois ESPN league (1446375): connect, standings, transactions, and the 402 paywall all green.
 
-Yahoo: OAuth 2.0 + PKCE is implemented and fixture tested. Live Yahoo needs an approved Yahoo app with a registered redirect URI; not yet verified end to end.
+Yahoo: OAuth 2.0 authorization code + PKCE is implemented and fixture tested. This matches Yahoo's current documented contract (verified 2026-09-27; Yahoo's docs now require OAuth 2.0, the old OAuth 1.0a is legacy). Live Yahoo needs an approved Yahoo app with a registered redirect URI; not yet verified end to end.
 
 ## License
 

@@ -292,7 +292,10 @@ async function main() {
   });
 }
 
-if (!process.env.VITEST) {
+if (!process.env.VITEST && !process.env.VERCEL) {
+  // Local dev / self-host only. On Vercel the platform invokes the exported
+  // handler per request; binding a port here would crash concurrent
+  // invocations (EADDRINUSE -> process.exit(1) -> 500s).
   main().catch((err) => {
     console.error('fatal startup error:', err);
     process.exit(1);

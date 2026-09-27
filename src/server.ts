@@ -286,6 +286,14 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 export { app };
 
+// Default export: Vercel resolves this module itself as the function entry
+// for the / route (its launcher validates the entry module's default
+// export). Delegating to the Express app keeps every entry shape valid.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default function handler(req: any, res: any): void {
+  app(req, res);
+}
+
 async function main() {
   app.listen(PORT, '127.0.0.1', () => {
     console.log(`${SERVER_NAME} ${SERVER_VERSION} listening on 127.0.0.1:${PORT}`);

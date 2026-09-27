@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms of Service — Fantasy Football Connector</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:680px;margin:48px auto;padding:0 16px;line-height:1.6;color:#1a1a1a}h1{font-size:1.6rem}h2{font-size:1.15rem;margin-top:2rem}.muted{color:#666;font-size:.9rem}</style>
+</head>
+<body>
+<h1>Terms of Service — Fantasy Football Connector</h1>
+<p class="muted">Last updated: September 27, 2026. Operated by Mitchell Moses / OperatorZero.</p>
+
+<h2>1. What this is</h2>
+<p>The Fantasy Football Connector ("the connector") is a read-only agent connector for Meta Muse that lets you view
+fantasy football leagues hosted on Sleeper, ESPN, and Yahoo, and get heuristic advice about trades, waivers, and
+lineups. It cannot set lineups, propose or accept trades, add or drop players, or otherwise change anything in your
+leagues.</p>
+
+<h2>2. Accounts and access</h2>
+<p>Public Sleeper and ESPN leagues require no account. Private ESPN leagues use cookies you provide; Yahoo leagues use
+OAuth tokens you authorize. Credentials are passed per request from your Secure Credentials Store: the connector is
+stateless and does not store them. You are responsible for keeping your own credentials safe and for revoking access
+at the provider (ESPN, Yahoo) if you stop using the connector.</p>
+
+<h2>3. Subscriptions and the hosted trial</h2>
+<p>The hosted connector offers a <strong>Free</strong> tier (1 league; roster, matchup, standings, and transaction
+views), a <strong>Pro</strong> tier ($8/month: unlimited leagues, premium advice tools, private leagues), and a
+<strong>Commissioner</strong> tier ($25/month per league: weekly recaps, power rankings, trade review, draft kit).
+Premium tools return a 402 payment-required response with a subscription URL when your tier does not include them; the
+connector never charges you itself — payment is handled by the linked checkout provider. Subscriptions are
+month-to-month and can be cancelled at any time; cancellation takes effect at the end of the billing period.</p>
+
+<h2>4. Self-hosting</h2>
+<p>The connector source is published under the Apache License 2.0. You may self-host it for personal or commercial use
+under that license. Self-hosted instances do not include subscription management: premium gating resolves from your own
+configuration.</p>
+
+<h2>5. Data</h2>
+<p>The connector fetches league data from Sleeper, ESPN, and Yahoo on demand and returns it to your agent session. It
+does not retain league data, credentials, or OAuth tokens between requests. Request logs contain method, path, status,
+and timing only — never request bodies or credentials. We do not sell personal data.</p>
+
+<h2>6. Accuracy</h2>
+<p>League data comes from third-party providers and may be delayed or incomplete. Advice tools (trade analysis, waiver
+targets, start/sit) are heuristic and informational only — not professional advice, not a guarantee of outcomes. Always
+verify consequential decisions in your league's official app.</p>
+
+<h2>7. No affiliation</h2>
+<p>This connector is not affiliated with, endorsed by, or sponsored by Sleeper, ESPN, or Yahoo.</p>
+
+<h2>8. Acceptable use</h2>
+<p>Do not abuse the service (e.g., automated scraping at abusive rates, circumventing provider access controls). Rate
+limits apply. We may suspend access for abuse or non-payment of premium tiers.</p>
+
+<h2>9. Liability</h2>
+<p>The service is provided "as is" without warranties. To the maximum extent permitted by law, we are not liable for
+indirect or consequential damages, including fantasy league outcomes. Total liability is limited to amounts you paid
+for the service in the prior 12 months.</p>
+
+<h2>10. Changes</h2>
+<p>We may update these terms; material changes will be reflected in the "Last updated" date above. Continued use after
+changes constitutes acceptance.</p>
+
+<h2>11. Contact</h2>
+<p>Support: see the support URL in the directory listing or the repo README.</p>
+</body>
+</html>

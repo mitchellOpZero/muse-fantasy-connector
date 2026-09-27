@@ -1,0 +1,26 @@
+Fantasy Football Connector for Meta Muse — tool contract.
+
+Endpoint: POST /mcp (JSON-RPC 2.0, Streamable HTTP, single JSON body, no SSE).
+GET /mcp -> 405 by design. initialize with protocolVersion 2025-06-18.
+
+TOOLS
+- connect_league(platform, league_id, season?, credential?) -> FREE. Validates the league; returns canonical coordinates to reuse. Public Sleeper/ESPN need no auth.
+- list_my_teams(platform, league_id, season?, credential?) -> FREE. All teams: name, id, record, points. Ask the user which team is theirs for public leagues.
+- get_roster(platform, league_id, team_id, week?, season?, credential?) -> FREE. Starters + bench with points and projections where available.
+- get_matchup(platform, league_id, week?, season?, credential?) -> FREE. All matchups for a week (default current).
+- get_standings(platform, league_id, season?, credential?) -> FREE. Ranked standings.
+- list_transactions(platform, league_id, week?, type?, season?, credential?) -> FREE. Trades/waivers/free-agent adds. Poll this for trade alerts.
+- analyze_trade(platform, league_id, my_team_id, other_team_id, players_in[], players_out[], week?, season?, credential?) -> PRO (402 without). Heuristic fairness check.
+- waiver_targets(platform, league_id, my_team_id?, week?, position?, limit?, season?, credential?) -> PRO (402 without). Trending/available adds, heuristic.
+- start_sit_advice(platform, league_id, team_id, week?, season?, credential?) -> PRO (402 without). Lineup suggestions, heuristic.
+- weekly_recap(platform, league_id, week?, season?, credential?) -> COMMISSIONER (402 without). Blowout, closest game, top scorer, trades, power ranking.
+
+RULES
+- Read-only. No tool sets lineups, proposes/accepts trades, or changes leagues.
+- Advice tools are heuristic. Say so every time; never present as model-grade.
+- Premium tools without the tier return isError with structuredContent { http_status: 402, code: "payment_required", required_tier, payment_url, pricing_url }. Relay the tier and URL; never charge.
+- Credentials (espn_swid/espn_s2, yahoo_access_token) come from the Secure Credentials Store only. Never ask for them raw, never echo them.
+- Sleeper: numeric league id. ESPN: numeric league id. Yahoo: league key "nfl.l.12345".
+- Stateless: pass league coordinates on every call; there is no session.
+- Tiers come from Authorization: Bearer <subject> or x-muse-subject. Anonymous = Free.
+- Terms: /terms. Pricing: PRICING.md.

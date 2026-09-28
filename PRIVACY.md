@@ -20,11 +20,11 @@ It reads your fantasy football leagues on Sleeper, ESPN, and Yahoo so Muse can s
 
 ## Subscription status
 
-Tier checks (Free / Pro / Commissioner) read a subject identifier from the request and compare it against a server-side list. No payment details are handled by this connector; checkout happens on the payment provider's page.
+Tier checks (Free / Pro / Commissioner) read a subject identifier from the request and compare it against a server-side list. No payment details are handled by this connector; checkout happens on the payment provider's page. When you subscribe, the payment provider's webhook stores a tier entitlement keyed by that subject identifier (tier, subscription id, customer id — no card or payment details) in the server's store (Vercel KV in production) so paid tools unlock. It is removed when the subscription ends.
 
 ## Retention
 
-There is nothing to retain. The connector is stateless. In-memory caches (Sleeper player map, rate limiter) live only in the running process and are discarded on restart.
+League data, credentials, and tokens are never retained: the connector is stateless for those. In-memory caches (Sleeper player map, rate limiter) live only in the running process and are discarded on restart. Paid-tier entitlements persist in the server store until the subscription ends or is cancelled, plus an audit log of billing events (capped at 200 entries).
 
 ## Contact
 

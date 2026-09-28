@@ -42,11 +42,21 @@ Copy `.env.example` to `.env`. Nothing is required to boot: every optional piece
 
 ## Paid tiers
 
-See [PRICING.md](PRICING.md). Enforcement is a 402 style gate inside each tool: the tool returns `payment_required` with `payment_url` and `pricing_url`, never a charge. Stripe webhook is a documented 501 stub until checkout is wired.
+See [PRICING.md](PRICING.md). Enforcement is a 402 style gate inside each tool: the tool returns `payment_required` with `payment_url` and `pricing_url`, never a charge.
+
+### Stripe webhook setup (one-time, operator)
+
+Paid tiers unlock automatically through the Stripe webhook at `POST /v1/billing/webhook`:
+
+1. In the Stripe dashboard, create a webhook endpoint with URL `https://<your-domain>/v1/billing/webhook` (production: `https://muse-fantasy-connector.vercel.app/v1/billing/webhook`).
+2. Subscribe it to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed`.
+3. Copy the endpoint's signing secret into the `STRIPE_WEBHOOK_SECRET` env var (Vercel: project Settings → Environment Variables, Production) and redeploy.
+
+How it works: the 402 `payment_url` appends the caller's Muse subject id as Stripe's `client_reference_id`; on `checkout.session.completed` the webhook verifies the Stripe signature, maps the amount to a tier, and stores the entitlement (Vercel KV in production, memory locally). `customer.subscription.deleted` revokes it. Test-mode events are logged but never grant tiers. Without the secret the endpoint answers 501 and tiers fall back to the `PREMIUM_SUBJECTS` / `COMMISSIONER_SUBJECTS` env lists. Billing event audit log (no PII without the admin token): `GET /v1/billing/events` with `Authorization: Bearer <BILLING_ADMIN_SECRET>`; config status: `GET /v1/billing/status`.
 
 ## Privacy and terms
 
-[PRIVACY.md](PRIVACY.md) and the hosted `/privacy` page. Terms at `/terms`. The connector is stateless: credentials arrive per request from Muse's Secure Credentials Store, are used once, and are never stored or logged.
+[PRIVACY.md](PRIVACY.md) and the hosted `/privacy` page. Terms at `/terms`. League credentials arrive per request from Muse's Secure Credentials Store, are used once, and are never stored or logged; only paid-tier entitlements persist (see PRIVACY.md).
 
 ## Repo layout
 

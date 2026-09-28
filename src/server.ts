@@ -367,6 +367,34 @@ async function handleBillingWebhook(req: Request, res: Response): Promise<void> 
           note: `status=${info.status}`,
         });
       }
+    } else if (type === 'invoice.payment_failed' || type === 'customer.subscription.created') {
+      // Robustness events: never change tiers on their own. Failed payments
+      // are retried by Stripe (revocation comes from subscription.deleted);
+      // created is a backstop record (the grant comes from
+      // checkout.session.completed). Both land in the audit log.
+      const obj = (event as { data?: { object?: Record<string, unknown> } }).data?.object;
+      const subId =
+        obj && typeof obj.subscription === 'string'
+          ? obj.subscription
+          : obj && typeof obj.id === 'string'
+            ? obj.id
+            : null;
+      if ((event as { livemode?: unknown }).livemode === true) {
+        await entitlements.recordEvent({
+          id: eventId,
+          type,
+          subject: subId ? await entitlements.subjectForSubscription(subId) : null,
+          tier: null,
+          email: null,
+          subscriptionId: subId,
+          livemode: true,
+          createdAt: new Date().toISOString(),
+          note:
+            type === 'invoice.payment_failed'
+              ? 'payment failed; Stripe retries automatically'
+              : 'subscription created; entitlement granted via checkout.session.completed',
+        });
+      }
     }
     // Unknown event types are acknowledged and ignored.
     await entitlements.markEventSeen(eventId);

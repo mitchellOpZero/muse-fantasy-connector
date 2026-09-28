@@ -20,13 +20,13 @@ No tool can change anything on Sleeper, ESPN, or Yahoo. There is no code path th
 
 ## Billing
 
-- Tier checks compare a subject identifier from the request against a server-side list. Subjects are opaque strings (Muse user ids or emails), not passwords.
+- Tier checks compare a subject identifier from the request against webhook-synced entitlements (Vercel KV) plus the static env lists. Subjects are opaque strings (Muse user ids or emails), not passwords.
 - The connector never sees card numbers and never charges anyone: premium tools return `402 Payment Required` with a `payment_url`, and checkout happens on the payment provider.
-- The Stripe webhook endpoint is a documented 501 stub until checkout is wired; it accepts nothing.
+- The Stripe webhook (`POST /v1/billing/webhook`) verifies the `Stripe-Signature` header (HMAC-SHA256, 5-minute replay window) before trusting any event; unverified requests get a 400 and change nothing. Test-mode events are logged, never granted.
 
 ## Supply chain
 
-- Dependencies are pinned via `package-lock.json`. `npm run typecheck` (strict) and `npm test` (41 tests) run on every change.
+- Dependencies are pinned via `package-lock.json`. `npm run typecheck` (strict) and `npm test` (65 tests) run on every change.
 - No analytics SDKs, no tracking cookies, no third-party scripts. The static pages (`/terms`, `/privacy`) are plain HTML.
 
 ## Disclosure

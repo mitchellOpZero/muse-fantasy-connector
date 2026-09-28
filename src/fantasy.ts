@@ -16,6 +16,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ConnectorConfig } from './config.js';
 import { paymentRequiredText, requireTier, requireTierFor, subjectFromHeaders, type Tier } from './billing.js';
+import { MemoryEntitlementStore, type EntitlementStore } from './entitlements.js';
 import { createSleeperProvider, sleeperTrendingAdds } from './providers/sleeper.js';
 import { createEspnProvider } from './providers/espn.js';
 import { createYahooProvider } from './providers/yahoo.js';
@@ -52,13 +53,19 @@ export interface ToolDeps {
   getConfig?: () => ConnectorConfig;
   /** Override request headers (tests). Defaults to the live request's headers. */
   headers?: Record<string, string | string[] | undefined>;
+  /** Entitlement backend (tests/dev). Defaults to a process-local memory store. */
+  entitlements?: EntitlementStore;
 }
 
 type Ctx = {
   providers: Record<Platform, LeagueProvider>;
   cfg: ConnectorConfig;
   headers: Record<string, string | string[] | undefined>;
+  entitlements: EntitlementStore;
 };
+
+/** Process-local fallback when the host does not inject an entitlement store. */
+const defaultEntitlements = new MemoryEntitlementStore();
 
 function textResult(text: string, structured?: unknown) {
   const base = { content: [{ type: 'text' as const, text }] };
@@ -80,21 +87,21 @@ function providerErrorResult(err: unknown) {
   return errorResult(`Unexpected error: ${(err as Error).message}`, 'internal_error');
 }
 
-function paymentError(tool: string, ctx: Ctx) {
+async function paymentError(tool: string, ctx: Ctx) {
   const subject = subjectFromHeaders(ctx.headers);
-  const gate = requireTier(ctx.cfg, subject, tool);
+  const gate = await requireTier(ctx.cfg, ctx.entitlements, subject, tool);
   if (gate.ok) return null;
   return gateResult(gate);
 }
 
-function paymentErrorForTier(required: Tier, tool: string, ctx: Ctx) {
+async function paymentErrorForTier(required: Tier, tool: string, ctx: Ctx) {
   const subject = subjectFromHeaders(ctx.headers);
-  const gate = requireTierFor(ctx.cfg, subject, required, tool);
+  const gate = await requireTierFor(ctx.cfg, ctx.entitlements, subject, required, tool);
   if (gate.ok) return null;
   return gateResult(gate);
 }
 
-function gateResult(gate: Extract<ReturnType<typeof requireTier>, { ok: false }>) {
+function gateResult(gate: Extract<Awaited<ReturnType<typeof requireTier>>, { ok: false }>) {
   return {
     content: [{ type: 'text' as const, text: paymentRequiredText(gate.payment) }],
     isError: true,
@@ -134,6 +141,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
     providers,
     cfg,
     headers: deps.headers ?? ((server as unknown as { __reqHeaders?: Ctx['headers'] }).__reqHeaders ?? {}),
+    entitlements: deps.entitlements ?? defaultEntitlements,
   });
 
   server.registerTool(
@@ -154,7 +162,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
       // Yahoo leagues (Yahoo always requires an OAuth token).
       const needsPro = input.platform === 'yahoo' || hasPrivateCredential(input);
       if (needsPro) {
-        const gate = paymentErrorForTier('pro', 'connect_league', c);
+        const gate = await paymentErrorForTier('pro', 'connect_league', c);
         if (gate) return gate;
       }
       try {
@@ -336,7 +344,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
     },
     async (args) => {
       const c = ctx();
-      const gate = paymentError('analyze_trade', c);
+      const gate = await paymentError('analyze_trade', c);
       if (gate) return gate;
       try {
         const p = c.providers[inputOf(args).platform];
@@ -406,7 +414,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
     },
     async (args) => {
       const c = ctx();
-      const gate = paymentError('waiver_targets', c);
+      const gate = await paymentError('waiver_targets', c);
       if (gate) return gate;
       try {
         const platform = inputOf(args).platform;
@@ -471,7 +479,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
     },
     async (args) => {
       const c = ctx();
-      const gate = paymentError('start_sit_advice', c);
+      const gate = await paymentError('start_sit_advice', c);
       if (gate) return gate;
       try {
         const roster = await c.providers[inputOf(args).platform].getRoster(inputOf(args));
@@ -525,7 +533,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
     },
     async (args) => {
       const c = ctx();
-      const gate = paymentError('weekly_recap', c);
+      const gate = await paymentError('weekly_recap', c);
       if (gate) return gate;
       try {
         const p = c.providers[inputOf(args).platform];

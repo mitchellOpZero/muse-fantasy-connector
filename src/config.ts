@@ -14,6 +14,13 @@ export interface ConnectorConfig {
   rateLimitPerMin: number;
   premiumSubjects: Set<string>;
   commissionerSubjects: Set<string>;
+  /** Verified by the Stripe webhook before any event is trusted. */
+  stripeWebhookSecret: string | undefined;
+  /** Protects the admin billing-events endpoint (watcher cron). */
+  billingAdminSecret: string | undefined;
+  /** Checkout amounts (cents, USD) that identify each tier on the webhook. */
+  stripeProAmountCents: number;
+  stripeCommissionerAmountCents: number;
   yahoo: {
     clientId?: string;
     clientSecret?: string;
@@ -48,6 +55,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConnectorConfi
     rateLimitPerMin: Number(env.RATE_LIMIT_PER_MIN ?? 600),
     premiumSubjects: csv(env.PREMIUM_SUBJECTS),
     commissionerSubjects: csv(env.COMMISSIONER_SUBJECTS),
+    stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET || undefined,
+    billingAdminSecret: env.BILLING_ADMIN_SECRET || undefined,
+    stripeProAmountCents: Number(env.STRIPE_PRO_AMOUNT_CENTS ?? 800),
+    stripeCommissionerAmountCents: Number(env.STRIPE_COMMISSIONER_AMOUNT_CENTS ?? 2500),
     yahoo: {
       clientId: env.YAHOO_CLIENT_ID || undefined,
       clientSecret: env.YAHOO_CLIENT_SECRET || undefined,

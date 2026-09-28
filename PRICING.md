@@ -33,4 +33,4 @@ The connector never charges you itself. When a tool needs a paid tier, it answer
 
 Prices in USD. Cancel anytime; you keep paid features until the end of the billing period.
 
-Checkout and subscription management links are configured at deploy time (`PAYMENT_URL`). Until Stripe is wired, the endpoint returns a documented placeholder.
+Checkout and subscription management links are configured at deploy time (`PAYMENT_URL`, `PRO_PAYMENT_URL`, `COMMISSIONER_PAYMENT_URL`). The Stripe webhook verifies each payment and unlocks the buyer's tier automatically; subscription cancellations revoke it at period end.

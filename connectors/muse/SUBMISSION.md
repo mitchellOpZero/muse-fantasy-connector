@@ -21,9 +21,9 @@ Fill the directory form with exactly these values. The documentation field takes
 
 | Field | Value |
 |---|---|
-| Name | Fantasy Football Connector |
+| Name | FantasyPlug |
 | Tagline | Manage every fantasy team from one place |
-| Description | Sleeper, ESPN, and Yahoo in one connector. Rosters, matchups, standings, transactions free with no login. Trade analyzer, waiver targets, start/sit advice, and private leagues on Pro. AI weekly recaps for commissioners. Read only, never touches your lineups. |
+| Description | Sleeper and ESPN in one connector, with Yahoo coming soon. Rosters, matchups, standings, transactions free with no login. Trade analyzer, waiver targets, start/sit advice, and private leagues on Pro. AI weekly recaps for commissioners. Read only, never touches your lineups. |
 | MCP endpoint | `https://<your-deploy>/mcp` |
 | Documentation URL | `https://<your-deploy>/muse.md` |
 | Terms URL | `https://<your-deploy>/terms` |

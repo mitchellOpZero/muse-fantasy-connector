@@ -16,8 +16,13 @@
  *   GET  /privacy              Privacy Policy
  *   GET  /icon.png             512x512 connector icon
  *   GET  /                     brief landing page
+ *   POST /v1/billing/webhook   Stripe webhook: verifies signature, syncs
+ *                                subject -> tier entitlements (KV in prod)
+ *   GET  /v1/billing/events    Admin: recent billing events (Bearer <BILLING_ADMIN_SECRET>)
+ *   GET  /v1/billing/status    Public: webhook/store configuration status
  */
 import { readFile } from 'node:fs/promises';
+import { timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
@@ -25,6 +30,12 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { loadConfig } from './config.js';
 import { registerFantasyTools } from './fantasy.js';
+import {
+  parseCheckoutCompleted,
+  parseSubscriptionEvent,
+  verifyStripeSignature,
+} from './billing.js';
+import { createEntitlementStore } from './entitlements.js';
 import {
   newCodeVerifier,
   yahooAuthorizeUrl,
@@ -39,9 +50,23 @@ const SERVER_NAME = 'fantasy-football';
 
 const cfg = loadConfig();
 
+/** Webhook-synced subject -> tier entitlements (KV in prod, memory locally). */
+const entitlements = createEntitlementStore();
+
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 'loopback');
+
+// Stripe webhook MUST see the raw body for signature verification, so it is
+// registered before the global JSON parser with its own raw-body parser.
+app.post(
+  '/v1/billing/webhook',
+  express.raw({ type: 'application/json', limit: '64kb' }),
+  (req: Request, res: Response) => {
+    void handleBillingWebhook(req, res);
+  },
+);
+
 app.use(express.json({ limit: '64kb' }));
 
 app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
@@ -141,7 +166,7 @@ app.post('/mcp', makeRateLimit(), async (req: Request, res: Response) => {
     // Stash per-request headers so tool handlers can resolve the caller's
     // subscription tier without any session state.
     (server as unknown as { __reqHeaders: unknown }).__reqHeaders = req.headers;
-    registerFantasyTools(server, { getConfig: () => cfg });
+    registerFantasyTools(server, { getConfig: () => cfg, entitlements });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless: no session management
       enableJsonResponse: true, // single JSON body, no SSE (required by Muse's egress proxy)
@@ -215,22 +240,175 @@ app.post('/v1/yahoo/callback', async (req: Request, res: Response) => {
   }
 });
 
-// ---- Stripe webhook scaffold ----
-// Production billing syncs here: verify the webhook signature with
-// STRIPE_WEBHOOK_SECRET, then upsert the subject->tier mapping in durable
-// storage. Until wired, this is a documented stub.
-app.post('/v1/billing/webhook', (req: Request, res: Response) => {
-  if (!process.env.STRIPE_WEBHOOK_SECRET) {
-    res.status(501).json({
-      error: 'not_configured',
-      message:
-        'Billing webhook is not wired yet. Tiers are currently resolved from PREMIUM_SUBJECTS / COMMISSIONER_SUBJECTS env config. See PRICING.md.',
+// ---- Stripe billing webhook ----
+// Verifies the Stripe signature, then syncs subject -> tier entitlements:
+//   checkout.session.completed -> grant tier (mapped via client_reference_id,
+//     which the 402 payment_url appends to the Stripe payment link)
+//   customer.subscription.deleted -> revoke tier
+//   customer.subscription.updated  -> audit-logged; grants are idempotent
+// Test-mode events are logged but never grant entitlements.
+
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+async function handleCheckoutCompleted(event: unknown): Promise<void> {
+  const info = parseCheckoutCompleted(event, cfg);
+  if (!info) return;
+  const now = new Date().toISOString();
+  if (!info.livemode) {
+    await entitlements.recordEvent({
+      id: info.eventId,
+      type: 'checkout.session.completed',
+      subject: info.subject,
+      tier: info.tier,
+      email: info.email,
+      subscriptionId: info.subscriptionId,
+      livemode: false,
+      createdAt: now,
+      note: 'test-mode event; no entitlement granted',
     });
     return;
   }
-  // TODO: verify stripe signature, upsert subscription -> subject tier.
-  console.log('[billing] webhook received; handler not implemented');
-  res.status(501).json({ error: 'not_implemented', message: 'Webhook handler scaffold only.' });
+  if (info.subject && (info.tier === 'pro' || info.tier === 'commissioner')) {
+    await entitlements.setEntitlement(info.subject, {
+      tier: info.tier,
+      subscriptionId: info.subscriptionId,
+      customerId: info.customerId,
+      updatedAt: now,
+    });
+  }
+  await entitlements.recordEvent({
+    id: info.eventId,
+    type: 'checkout.session.completed',
+    subject: info.subject,
+    tier: info.tier,
+    email: info.email,
+    subscriptionId: info.subscriptionId,
+    livemode: true,
+    createdAt: now,
+    ...(info.subject ? {} : { note: 'no client_reference_id; needs manual subject mapping' }),
+  });
+  console.log(
+    `[billing] checkout completed: subject=${info.subject ?? 'UNMAPPED'} tier=${info.tier ?? 'unknown'} sub=${info.subscriptionId ?? 'none'}`,
+  );
+}
+
+async function handleSubscriptionEnded(event: unknown): Promise<void> {
+  const info = parseSubscriptionEvent(event);
+  if (!info || !info.livemode) return;
+  const now = new Date().toISOString();
+  const subject = await entitlements.subjectForSubscription(info.subscriptionId);
+  if (subject) await entitlements.removeEntitlement(subject);
+  await entitlements.recordEvent({
+    id: info.eventId,
+    type: info.type,
+    subject,
+    tier: null,
+    email: null,
+    subscriptionId: info.subscriptionId,
+    livemode: true,
+    createdAt: now,
+  });
+  console.log(`[billing] subscription ended: subject=${subject ?? 'unknown'} sub=${info.subscriptionId}`);
+}
+
+async function handleBillingWebhook(req: Request, res: Response): Promise<void> {
+  const secret = cfg.stripeWebhookSecret;
+  if (!secret) {
+    res.status(501).json({
+      error: 'not_configured',
+      message:
+        'STRIPE_WEBHOOK_SECRET is not set. Tiers resolve from PREMIUM_SUBJECTS / COMMISSIONER_SUBJECTS env config. See PRICING.md.',
+    });
+    return;
+  }
+  const raw = req.body as unknown;
+  if (!Buffer.isBuffer(raw) || !verifyStripeSignature(raw, req.headers['stripe-signature'], secret)) {
+    res.status(400).json({ error: 'invalid_signature', message: 'Stripe signature verification failed.' });
+    return;
+  }
+  let event: unknown;
+  try {
+    event = JSON.parse(raw.toString('utf8'));
+  } catch {
+    res.status(400).json({ error: 'invalid_json', message: 'Webhook body is not valid JSON.' });
+    return;
+  }
+  const type = (event as { type?: unknown }).type;
+  const eventId = (event as { id?: unknown }).id;
+  if (typeof type !== 'string' || typeof eventId !== 'string') {
+    res.status(400).json({ error: 'invalid_event', message: 'Not a Stripe event object.' });
+    return;
+  }
+  try {
+    if (await entitlements.seenEvent(eventId)) {
+      res.json({ received: true, deduped: true });
+      return;
+    }
+    if (type === 'checkout.session.completed') {
+      await handleCheckoutCompleted(event);
+    } else if (type === 'customer.subscription.deleted') {
+      await handleSubscriptionEnded(event);
+    } else if (type === 'customer.subscription.updated') {
+      const info = parseSubscriptionEvent(event);
+      if (info?.livemode) {
+        await entitlements.recordEvent({
+          id: info.eventId,
+          type: info.type,
+          subject: await entitlements.subjectForSubscription(info.subscriptionId),
+          tier: null,
+          email: null,
+          subscriptionId: info.subscriptionId,
+          livemode: true,
+          createdAt: new Date().toISOString(),
+          note: `status=${info.status}`,
+        });
+      }
+    }
+    // Unknown event types are acknowledged and ignored.
+    await entitlements.markEventSeen(eventId);
+    res.json({ received: true });
+  } catch (err) {
+    console.error('[billing] webhook handler error:', err);
+    res.status(500).json({ error: 'handler_error', message: 'Webhook processing failed; Stripe will retry.' });
+  }
+}
+
+// Admin: recent billing events for the payment watcher. Never expose emails
+// or subjects without the admin secret.
+app.get('/v1/billing/events', (req: Request, res: Response) => {
+  const secret = cfg.billingAdminSecret;
+  const auth = req.headers.authorization;
+  const token =
+    typeof auth === 'string' && /^bearer\s+/i.test(auth) ? auth.replace(/^bearer\s+/i, '').trim() : '';
+  if (!secret) {
+    res.status(501).json({ error: 'not_configured', message: 'BILLING_ADMIN_SECRET is not set.' });
+    return;
+  }
+  if (!token || !safeEqual(token, secret)) {
+    res.status(401).json({ error: 'unauthorized', message: 'Valid admin bearer token required.' });
+    return;
+  }
+  const since = typeof req.query.since === 'string' ? req.query.since : '1970-01-01T00:00:00.000Z';
+  entitlements
+    .recentEvents(since, 100)
+    .then((events) => res.json({ events }))
+    .catch((err) => {
+      console.error('[billing] events endpoint error:', err);
+      res.status(500).json({ error: 'store_error', message: 'Could not read billing events.' });
+    });
+});
+
+// Public: webhook/store configuration status (no secrets, no PII).
+app.get('/v1/billing/status', (_req: Request, res: Response) => {
+  res.json({
+    webhook_configured: Boolean(cfg.stripeWebhookSecret),
+    store: process.env.KV_REST_API_URL ? 'kv' : 'memory',
+    version: SERVER_VERSION,
+  });
 });
 
 // ---- static docs ----

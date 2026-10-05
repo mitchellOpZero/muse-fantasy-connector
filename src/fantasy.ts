@@ -48,6 +48,14 @@ const leagueArgs = {
   credential: credentialSchema,
 };
 
+/** MCP tool annotations. Every tool is read-only: no writes, no side effects. */
+const READ_ONLY_ANNOTATIONS = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const;
+
 export interface ToolDeps {
   fetchImpl?: FetchImpl;
   getConfig?: () => ConnectorConfig;
@@ -153,6 +161,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
         'Public Sleeper and ESPN leagues need no auth — just the league id. Private ESPN leagues need swid/espn_s2 cookies; Yahoo leagues always need OAuth. ' +
         'Credentials must come from Muse\'s Secure Credentials Store, never typed raw. ' +
         'Free tier. Read-only: this cannot change anything in your league.',
+      annotations: READ_ONLY_ANNOTATIONS,
       inputSchema: { ...leagueArgs },
     },
     async (args) => {
@@ -185,6 +194,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
       description:
         'List every team in the league (name, record, points). For public leagues this lists all teams — tell Muse which one is yours. ' +
         'Free tier. Read-only.',
+      annotations: READ_ONLY_ANNOTATIONS,
       inputSchema: { ...leagueArgs },
     },
     async (args) => {
@@ -209,6 +219,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
       description:
         'Starters and bench for a team in a given week, with points scored and projected points where the platform provides them. ' +
         'Free tier. Read-only: this cannot set your lineup.',
+      annotations: READ_ONLY_ANNOTATIONS,
       inputSchema: {
         ...leagueArgs,
         team_id: z.string().describe('Sleeper: roster_id. ESPN: team id. Yahoo: team key.'),
@@ -241,6 +252,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
       description:
         'Every matchup for a week: both teams, points scored, projections where available. Defaults to the current week. ' +
         'Free tier. Read-only.',
+      annotations: READ_ONLY_ANNOTATIONS,
       inputSchema: {
         ...leagueArgs,
         week: z.number().int().positive().optional().describe('Week number; defaults to the current week.'),
@@ -270,6 +282,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
     {
       title: 'Get league standings',
       description: 'Standings sorted by wins then points for, with rank, record, and points. Free tier. Read-only.',
+      annotations: READ_ONLY_ANNOTATIONS,
       inputSchema: { ...leagueArgs },
     },
     async (args) => {
@@ -296,6 +309,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
       description:
         'Recent trades, waiver claims, and free-agent adds for a week (defaults to current week). This is how trade alerts work: ' +
         'call it on a schedule and diff against the last check. Free tier. Read-only.',
+      annotations: READ_ONLY_ANNOTATIONS,
       inputSchema: {
         ...leagueArgs,
         week: z.number().int().positive().optional().describe('Week number; defaults to the current week.'),
@@ -333,6 +347,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
         'heuristic trade fairness analysis from rosters and recent scoring. ' +
           'Heuristic only, not projection-model grade. Read-only: it cannot propose or accept trades.',
       ),
+      annotations: READ_ONLY_ANNOTATIONS,
       inputSchema: {
         ...leagueArgs,
         my_team_id: z.string().describe('Your team id.'),
@@ -404,6 +419,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
         'trending adds and available players by position, ranked by a simple heuristic. ' +
           'Heuristic only. Read-only: it cannot place waiver claims.',
       ),
+      annotations: READ_ONLY_ANNOTATIONS,
       inputSchema: {
         ...leagueArgs,
         my_team_id: z.string().optional().describe('Your team id — used to exclude players you already own (Sleeper).'),
@@ -471,6 +487,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
         'lineup suggestions from projections and recent scoring. ' +
           'Heuristic only, not a guarantee. Read-only: it cannot set your lineup.',
       ),
+      annotations: READ_ONLY_ANNOTATIONS,
       inputSchema: {
         ...leagueArgs,
         team_id: z.string(),
@@ -526,6 +543,7 @@ export function registerFantasyTools(server: McpServer, deps: ToolDeps = {}): vo
         'commissioner-style week in review: biggest blowout, closest game, top scorer, transaction highlights, power ranking. ' +
           'Built for the "runs your league for you" tier.',
       ),
+      annotations: READ_ONLY_ANNOTATIONS,
       inputSchema: {
         ...leagueArgs,
         week: z.number().int().positive().optional().describe('Week number; defaults to the current week.'),

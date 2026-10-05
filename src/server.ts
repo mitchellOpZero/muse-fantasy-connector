@@ -439,6 +439,16 @@ app.get('/v1/billing/status', (_req: Request, res: Response) => {
   });
 });
 
+// OpenAI plugin domain-verification challenge: serves the exact token from
+// the Plugins dashboard as plain text. Set OPENAI_APPS_CHALLENGE in env
+// after starting the OpenAI submission; unset -> 404 (route inert).
+app.get('/.well-known/openai-apps-challenge', (_req: Request, res: Response) => {
+  const token = process.env.OPENAI_APPS_CHALLENGE;
+  if (!token) return res.status(404).send('Not found');
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.send(token);
+});
+
 // ---- static docs ----
 const staticDir = path.join(dirName, 'static');
 const serve = (file: string, type: string) => async (_req: Request, res: Response) => {
@@ -456,6 +466,7 @@ app.get('/muse.md', serve('muse.md', 'text/markdown; charset=utf-8'));
 app.get('/llms.txt', serve('llms.txt', 'text/plain; charset=utf-8'));
 app.get('/terms', serve('terms.html', 'text/html; charset=utf-8'));
 app.get('/privacy', serve('privacy.html', 'text/html; charset=utf-8'));
+app.get('/pricing', serve('pricing.html', 'text/html; charset=utf-8'));
 app.get('/icon.png', serve('icon.png', 'image/png'));
 app.get('/', (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
